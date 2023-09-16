@@ -1,6 +1,6 @@
-# expense_tracker
+# Smart Saver
 
-Final Year Project
+Expense Tracker
 
 ## Getting Started
 
