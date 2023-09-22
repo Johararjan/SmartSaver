@@ -103,15 +103,15 @@ class _SummaryPageState extends State<SummaryPage> {
   ];
   // Pie Chart Data
   Map<String, double> categoryData = {
-    'Food \$300': 300.0,
-    'Shopping \$150': 150.0,
-    'Entertainment \$100': 100.0,
-    'Transportation \$200': 200.0,
+    'Food \₹ 300': 300.0,
+    'Shopping \₹ 150': 150.0,
+    'Entertainment \₹ 100': 100.0,
+    'Transportation \₹ 200': 200.0,
   };
 
   Map<String, double> incomeExpenseSavingsData = {
-      'Expenses \$650': 650.0,
-      'Savings \$300': 350.0,
+      'Expenses \₹ 650': 650.0,
+      'Savings \₹ 300': 350.0,
   };
 
   @override
@@ -200,8 +200,16 @@ class _SummaryPageState extends State<SummaryPage> {
       ListView.builder(
         itemCount: transactions.length,
         itemBuilder: (context, index) {
-          return ListTile(
-            title: Text(transactions[index]),
+          final transaction = transactions[index];
+          final transactionData = transaction.split('|'); // Split the transaction data
+          final date = transactionData[0];
+          final category = transactionData[1];
+          final amount = double.parse(transactionData[2]);
+
+          return TransactionWidget(
+            date: date,
+            category: category,
+            amount: amount,
           );
         },
       ),
@@ -411,11 +419,77 @@ class _SummaryPageState extends State<SummaryPage> {
     );
   }
 }
+final Map<String, IconData> categoryIcons = {
+  'Housing': Icons.home,
+  'Transportation': Icons.directions_car,
+  'Food and Dining': Icons.restaurant,
+  'Utilities': Icons.flash_on,
+  'Personal Expense': Icons.person,
+  'Miscellaneous': Icons.category,
+};
+class TransactionWidget extends StatelessWidget {
+  final String date;
+  final String category;
+  final double amount;
+
+  TransactionWidget({
+    required this.date,
+    required this.category,
+    required this.amount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final IconData? categoryIcon = categoryIcons[category]; // Get the icon for the category
+    return ListTile(
+      title: Text(
+        'Date: $date',
+        style: TextStyle(
+          color: Color(0xff3AA6B9),
+          fontSize: 15,
+          fontWeight: FontWeight.bold,
+          fontFamily: 'Poppins',
+        ),
+      ),
+      subtitle: Text(
+        'Category: $category\nAmount: ₹ $amount',
+        style: TextStyle(
+          color: Color(0xff3AA6B9),
+          fontSize: 15,
+          fontWeight: FontWeight.w100,
+          fontFamily: 'Poppins',
+        ),
+      ),
+      trailing: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Color(0xff3AA6B9), // Change this to your desired background color
+        ),
+        padding: EdgeInsets.all(8.0), // Adjust padding as needed
+        child: Icon(
+          categoryIcon,
+          color: Colors.white, // Change this to your desired icon color
+        ),
+      ),
+      // You can customize the ListTile as needed
+    );
+  }
+}
 
 // Define your transaction data
 final List<String> transactions = [
-  'Transaction 1',
-  'Transaction 2',
-  'Transaction 3',
-  // Add your transactions here
+  '2023-09-01|Housing|800.0',
+  '2023-09-02|Transportation|50.0',
+  '2023-09-03|Food and Dining|100.0',
+  '2023-09-04|Utilities|150.0',
+  '2023-09-05|Personal Expense|50.0',
+  '2023-09-06|Miscellaneous|30.0',
+  '2023-09-07|Housing|800.0',
+  '2023-09-08|Transportation|50.0',
+  '2023-09-09|Food and Dining|100.0',
+  '2023-09-10|Utilities|150.0',
+  '2023-09-11|Personal Expense|50.0',
+  '2023-09-12|Miscellaneous|30.0',
+  // Add more transactions as needed
 ];
+

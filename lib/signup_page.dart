@@ -1,9 +1,8 @@
 import 'package:expense_tracker/summary_page.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Authentication
-import 'login_page.dart'; // Import your login page
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-
+import 'login_page.dart';
 
 class SignUpScreen extends StatefulWidget {
   @override
@@ -17,44 +16,107 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseDatabase _database = FirebaseDatabase.instance;
 
-
   TextEditingController nameController = TextEditingController();
   TextEditingController emailController = TextEditingController();
   TextEditingController passwordController = TextEditingController();
   TextEditingController confirmPasswordController = TextEditingController();
   TextEditingController phoneNumberController = TextEditingController();
 
-  // Function to handle user registration
+  String? errorMessage;
+  bool _isLoading = false;
+
   Future<void> registerWithEmailAndPassword() async {
+    final name = nameController.text;
+    final email = emailController.text;
+    final password = passwordController.text;
+    final confirmPassword = confirmPasswordController.text;
+    final phoneNumber = phoneNumberController.text;
+
+    if (name.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty ||
+        phoneNumber.isEmpty) {
+      setState(() {
+        errorMessage = 'Please fill in all fields.';
+      });
+      return;
+    }
+
+    final emailRegex = RegExp(r'^[\w-]+(\.[\w-]+)*@[\w-]+(\.[\w-]+)+$');
+    if (!emailRegex.hasMatch(email)) {
+      setState(() {
+        errorMessage = 'Invalid email format. Please enter a valid email address.';
+      });
+      return;
+    }
+
+    if (password.length < 6) {
+      setState(() {
+        errorMessage = 'Password must have at least 6 characters.';
+      });
+      return;
+    }
+
+    if (password != confirmPassword) {
+      setState(() {
+        errorMessage = 'Passwords do not match. Please re-enter passwords.';
+      });
+      return;
+    }
+
     try {
+      setState(() {
+        _isLoading = true;
+      });
+
       final UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
-        email: emailController.text,
-        password: passwordController.text,
+        email: email,
+        password: password,
       );
       final User? user = userCredential.user;
 
+      setState(() {
+        _isLoading = false;
+      });
+
       if (user != null) {
-        // User is registered successfully, store their details in the database
         await _database.ref().child("users").child(user.uid).set({
-          "name": nameController.text,
-          "email": emailController.text,
-          "phoneNumber": phoneNumberController.text,
+          "name": name,
+          "email": email,
+          "phoneNumber": phoneNumber,
         });
 
-        // Navigate to another screen after successful registration
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => SummaryPage()),
         );
       } else {
-        // Handle the case where registration fails
         print('Registration failed');
       }
-    } catch (e) {
-      print('Error: $e');
+    } catch (error) {
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (error is FirebaseAuthException) {
+        if (error.code == 'email-already-in-use') {
+          setState(() {
+            errorMessage = 'Email is already in use. Please use a different email.';
+          });
+        } else {
+          setState(() {
+            errorMessage = 'An error occurred. Please try again later.';
+          });
+        }
+      } else {
+        print('Error: $error');
+        setState(() {
+          errorMessage = 'An unexpected error occurred. Please try again later.';
+        });
+      }
     }
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -87,6 +149,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     fontFamily: 'Poppins',
                   ),
                 ),
+                if (errorMessage != null)
+                  Text(
+                    errorMessage!,
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                    ),
+                  ),
                 SizedBox(height: 32),
                 Container(
                   width: 350,
@@ -95,7 +167,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     borderRadius: BorderRadius.circular(10.0),
                   ),
                   child: TextField(
-                    controller: nameController, // Use the name controller
+                    controller: nameController,
                     decoration: InputDecoration(
                       labelText: 'Name',
                       prefixIcon: Icon(Icons.person, color: Color(0xff3AA6B9)),
@@ -116,7 +188,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     borderRadius: BorderRadius.circular(10.0),
                   ),
                   child: TextField(
-                    controller: emailController, // Use the email controller
+                    controller: emailController,
                     decoration: InputDecoration(
                       labelText: 'Email',
                       prefixIcon: Icon(Icons.email, color: Color(0xff3AA6B9)),
@@ -137,7 +209,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     borderRadius: BorderRadius.circular(10.0),
                   ),
                   child: TextField(
-                    controller: passwordController, // Use the password controller
+                    controller: passwordController,
                     decoration: InputDecoration(
                       labelText: 'Password',
                       prefixIcon: Icon(Icons.lock, color: Color(0xff3AA6B9)),
@@ -169,7 +241,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     borderRadius: BorderRadius.circular(10.0),
                   ),
                   child: TextField(
-                    controller: confirmPasswordController, // Use the confirm password controller
+                    controller: confirmPasswordController,
                     decoration: InputDecoration(
                       labelText: 'Confirm Password',
                       prefixIcon: Icon(Icons.lock, color: Color(0xff3AA6B9)),
@@ -201,7 +273,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     borderRadius: BorderRadius.circular(10.0),
                   ),
                   child: TextField(
-                    controller: phoneNumberController, // Use the phone number controller
+                    controller: phoneNumberController,
                     decoration: InputDecoration(
                       labelText: 'Phone Number',
                       prefixIcon: Icon(Icons.phone, color: Color(0xff3AA6B9)),
@@ -215,28 +287,37 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                 ),
                 SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () {
-                    registerWithEmailAndPassword(); // Call the function for registration
-                  },
-                  style: ButtonStyle(
-                    shape: MaterialStateProperty.all<RoundedRectangleBorder>(
-                      RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30.0),
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () {
+                        registerWithEmailAndPassword();
+                      },
+                      style: ButtonStyle(
+                        shape: MaterialStateProperty.all<RoundedRectangleBorder>(
+                          RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30.0),
+                          ),
+                        ),
+                        minimumSize: MaterialStateProperty.all(Size(300, 50)),
+                        backgroundColor: MaterialStateProperty.all<Color>(Color(0xff3AA6B9)),
+                      ),
+                      child: Text(
+                        'Sign Up',
+                        style: TextStyle(
+                          color: Color(0xFFFFFFFF),
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Poppins',
+                        ),
                       ),
                     ),
-                    minimumSize: MaterialStateProperty.all(Size(300, 50)),
-                    backgroundColor: MaterialStateProperty.all<Color>(Color(0xff3AA6B9)),
-                  ),
-                  child: Text(
-                    'Sign Up',
-                    style: TextStyle(
-                      color: Color(0xFFFFFFFF),
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'Poppins',
-                    ),
-                  ),
+                    if (_isLoading)
+                      CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                      ),
+                  ],
                 ),
                 SizedBox(height: 16),
                 TextButton(
@@ -244,7 +325,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => LoginScreen()),
-                    ); // Navigate to the login page
+                    );
                   },
                   child: Text(
                     'Already have an account? Sign In',

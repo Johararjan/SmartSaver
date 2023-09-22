@@ -16,27 +16,70 @@ class _LoginScreenState extends State<LoginScreen> {
   TextEditingController emailController = TextEditingController();
   TextEditingController passwordController = TextEditingController();
 
+  String? errorMessage; // Store the error message
+  bool _isLoading = false;
+
   // Function to handle user login
   Future<void> signInWithEmailAndPassword() async {
     try {
+      setState(() {
+        _isLoading = true; // Start showing the progress indicator
+      });
+
       final UserCredential userCredential = await _auth.signInWithEmailAndPassword(
         email: emailController.text,
         password: passwordController.text,
       );
       final User? user = userCredential.user;
+
+      setState(() {
+        _isLoading = false; // Stop showing the progress indicator
+      });
+
       if (user != null) {
         Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => SummaryPage()),
+          context,
+          MaterialPageRoute(builder: (context) => SummaryPage()),
         );
       } else {
         // Handle the case where login fails
-        print('Login failed');
+        setState(() {
+          errorMessage = 'Incorrect email or password. Please try again.';
+        });
       }
-    } catch (e) {
-      print('Error: $e');
+    } catch (error) {
+      setState(() {
+        _isLoading = false; // Stop showing the progress indicator
+      });
+
+      // Handle Firebase authentication errors
+      if (error is FirebaseAuthException) {
+        if (error.code == 'user-not-found') {
+          // The user does not exist
+          setState(() {
+            errorMessage = 'User not Registered. Please Register.';
+          });
+        } else if (error.code == 'wrong-password') {
+          // The password is incorrect
+          setState(() {
+            errorMessage = 'Wrong password. Please try again.';
+          });
+        } else {
+          // Handle other Firebase authentication errors
+          setState(() {
+            errorMessage = 'An error occurred. Please try again later.';
+          });
+        }
+      } else {
+        // Handle other errors (not Firebase authentication related)
+        print('Error: $error');
+        setState(() {
+          errorMessage = 'An unexpected error occurred. Please try again later.';
+        });
+      }
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +113,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     fontFamily: 'Poppins',
                   ),
                 ),
+                SizedBox(height: 16),
+                // Display error message if set
+                if (errorMessage != null)
+                  Text(
+                    errorMessage!,
+                    style: TextStyle(
+                      color: Colors.red, // Error message color
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                    ),
+                  ),
                 SizedBox(height: 32),
                 Container(
                   width: 350,
@@ -124,26 +179,50 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () {
-                    signInWithEmailAndPassword(); // Call the function for login
-                  },
-                  style: ButtonStyle(
-                    shape: MaterialStateProperty.all<RoundedRectangleBorder>(
-                      RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30.0),
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () {
+                        signInWithEmailAndPassword(); // Call the function for login
+                      },
+                      style: ButtonStyle(
+                        shape: MaterialStateProperty.all<RoundedRectangleBorder>(
+                          RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30.0),
+                          ),
+                        ),
+                        minimumSize: MaterialStateProperty.all(Size(300, 50)),
+                        backgroundColor: MaterialStateProperty.all<Color>(Color(0xff3AA6B9)),
+                      ),
+                      child: Text(
+                        'Sign In',
+                        style: TextStyle(
+                          color: Color(0xFFFFFFFF),
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Poppins',
+                        ),
                       ),
                     ),
-                    minimumSize: MaterialStateProperty.all(Size(300, 50)),
-                    backgroundColor: MaterialStateProperty.all<Color>(Color(0xff3AA6B9)),
-                  ),
+                    if (_isLoading)
+                      CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                      ),
+                  ],
+                ),
+                SizedBox(height: 16),
+                TextButton(
+                  onPressed: () {
+                    _resetPassword(); // Call the function to reset the password
+                  },
                   child: Text(
-                    'Sign In',
+                    'Forgot Password?',
                     style: TextStyle(
-                      color: Color(0xFFFFFFFF),
-                      fontSize: 20,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'Poppins',
+                      color: Color(0xff3aa6b9),
                     ),
                   ),
                 ),
@@ -180,5 +259,33 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
+  }
+
+  // Function to send a password reset email
+  Future<void> _resetPassword() async {
+    try {
+      await _auth.sendPasswordResetEmail(email: emailController.text);
+      // Show a dialog or message to inform the user that a reset email has been sent
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text('Password Reset Email Sent'),
+            content: Text('Check your email for instructions to reset your password.'),
+            actions: <Widget>[
+              TextButton(
+                child: Text('OK'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          );
+        },
+      );
+    } catch (e) {
+      print('Error sending reset password email: $e');
+      // Handle the error (e.g., user not found) and provide appropriate feedback to the user
+    }
   }
 }

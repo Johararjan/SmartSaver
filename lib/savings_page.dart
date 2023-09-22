@@ -145,7 +145,7 @@ class _FinancialGoalsPageState extends State<FinancialGoalsPage> {
                 TextField(
                   controller: targetAmountController,
                   decoration: InputDecoration(
-                    labelText: 'Target Amount (\$)',
+                    labelText: 'Target Amount (\₹)',
                     labelStyle: TextStyle(color: Color(0xff3AA6B9)),
                   ),
                   keyboardType: TextInputType.number,
@@ -372,7 +372,7 @@ class _FinancialGoalsPageState extends State<FinancialGoalsPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Target Amount: \$${goal.targetAmount.toStringAsFixed(2)}',
+                              'Target Amount: \₹${goal.targetAmount.toStringAsFixed(2)}',
                               style: TextStyle(
                                 color: Color(0xffffffff),
                               ),
@@ -495,7 +495,7 @@ class _FinancialGoalsPageState extends State<FinancialGoalsPage> {
                         TextField(
                           controller: targetAmountController,
                           decoration: InputDecoration(
-                            labelText: 'Target Amount (\$)',
+                            labelText: 'Target Amount (\₹)',
                             labelStyle: TextStyle(color: Color(0xff3AA6B9)),
                           ),
                           keyboardType: TextInputType.number,

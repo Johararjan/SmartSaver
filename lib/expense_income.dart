@@ -12,7 +12,6 @@ class _IncomeExpenseAddPageState extends State<IncomeExpenseAddPage> {
   PageController _pageController = PageController(initialPage: 0);
   int _currentPage = 0;
   int _bottomNavigationBarIndex = 1; // Index for the selected tab
-  double _expenseIncomeSliderValue = 0;
   @override
   void dispose() {
     _pageController.dispose();
