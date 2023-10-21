@@ -4,6 +4,13 @@ import 'package:expense_tracker/summary_page.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';// Import image_picker package
 import 'package:permission_handler/permission_handler.dart';
+import 'package:google_ml_vision/google_ml_vision.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
+
+
+
 class IncomeExpenseAddPage extends StatefulWidget {
   @override
   _IncomeExpenseAddPageState createState() => _IncomeExpenseAddPageState();
@@ -457,7 +464,14 @@ class _CashTransactionFormState extends State<CashTransactionForm> {
   DateTime? _selectedDate;
   String? selectedCategory;
 
-  TextEditingController _dateController = TextEditingController();
+  TextEditingController amountController = TextEditingController();
+  TextEditingController dateController = TextEditingController();
+  // TextEditingController categoryController = TextEditingController();
+  ImagePicker _picker = ImagePicker();
+  XFile? pickedImage;
+
+  // TextEditingController _dateController = TextEditingController();
+  // TextEditingController _amountController = TextEditingController();
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -492,33 +506,211 @@ class _CashTransactionFormState extends State<CashTransactionForm> {
   Future<void> _handleClickPhoto() async {
     requestPermissions();
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.camera);
+    final pickedImage = await picker.pickImage(source: ImageSource.camera);
 
-    if (pickedFile != null) {
-      // Handle scanned data here, you can use image processing libraries
-      // For now, simulate data
-      setState(() {
-        scannedData =
-        "Scanned Amount: 100.00\nScanned Date: 2023-08-29\nScanned Category: Category 1";
-        _photoUploaded = true;
-      });
+    if (pickedImage == null) return;
+
+    final textRecognizer = GoogleVision.instance.textRecognizer();
+    final visionImage = GoogleVisionImage.fromFilePath(pickedImage!.path);
+
+    final visionText = await textRecognizer.processImage(visionImage);
+
+    String totalAmount = '';
+    String date = '';
+
+    // Iterate through the recognized text to find "Total" and extract the numeric value
+    for (TextBlock block in visionText.blocks) {
+      for (TextLine line in block.lines) {
+        String? lineText = line.text;
+
+        if (lineText?.toLowerCase().contains('total') == true) {
+          int totalIndex = lineText!.toLowerCase().indexOf('total');
+          // Look for numbers after "Total" even if ':' or '$' is present
+          String lineAfterTotal = lineText.substring(
+              totalIndex + 'total'.length);
+
+          RegExp totalAmountPattern = RegExp(
+              r'[:$₹\s]*?([\d,.]+)', caseSensitive: false);
+          Match? totalAmountMatch = totalAmountPattern.firstMatch(
+              lineAfterTotal);
+
+          if (totalAmountMatch != null) {
+            totalAmount = totalAmountMatch.group(1) ?? '';
+            break; // Exit loop once the total amount is found
+          }
+        }
+        else if (lineText?.toLowerCase().contains('amount') == true) {
+          int totalIndex = lineText!.toLowerCase().indexOf('amount');
+          // Look for numbers after "Total" even if ':' or '$' is present
+          String lineAfterTotal = lineText.substring(
+              totalIndex + 'amount'.length);
+
+          RegExp totalAmountPattern = RegExp(
+              r'[:$₹\s]*?([\d,.]+)', caseSensitive: false);
+          Match? totalAmountMatch = totalAmountPattern.firstMatch(
+              lineAfterTotal);
+
+          if (totalAmountMatch != null) {
+            totalAmount = totalAmountMatch.group(1) ?? '';
+            break; // Exit loop once the total amount is found
+          }
+        }
+      }
     }
+
+    // Use a regular expression to find a date in the format dd/mm/yyyy or dd-mm-yyyy
+    RegExp datePattern = RegExp(
+        r'(\d{2}[/-]\d{2}[/-]\d{4})', caseSensitive: false);
+    Match? dateMatch = datePattern.firstMatch(visionText.text ??
+        ''); // Provide a default empty string if visionText.text is null
+
+    date = dateMatch != null ? dateMatch.group(1) ?? '' : 'Date not found';
+
+    setState(() {
+      amountController.text = totalAmount;
+      dateController.text = date;
+    });
+
+    textRecognizer.close();
   }
+
 
   // Function to handle uploading a photo
   Future<void> _handleUploadPhoto() async {
     requestPermissions();
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    final pickedImage = await picker.pickImage(source: ImageSource.gallery);
 
-    if (pickedFile != null) {
-      // Handle scanned data here, you can use image processing libraries
-      // For now, simulate data
+    if (pickedImage == null) return;
+
+    final textRecognizer = GoogleVision.instance.textRecognizer();
+    final visionImage = GoogleVisionImage.fromFilePath(pickedImage!.path);
+
+    final visionText = await textRecognizer.processImage(visionImage);
+
+    String totalAmount = '';
+    String date = '';
+
+    // Iterate through the recognized text to find "Total" and extract the numeric value
+    for (TextBlock block in visionText.blocks) {
+      for (TextLine line in block.lines) {
+        String? lineText = line.text;
+
+        if (lineText?.toLowerCase().contains('total') == true) {
+          int totalIndex = lineText!.toLowerCase().indexOf('total');
+          // Look for numbers after "Total" even if ':' or '$' is present
+          String lineAfterTotal = lineText.substring(totalIndex + 'total'.length);
+
+          RegExp totalAmountPattern = RegExp(r'[:$₹\s]*?([\d,.]+)', caseSensitive: false);
+          Match? totalAmountMatch = totalAmountPattern.firstMatch(lineAfterTotal);
+
+
+          if (totalAmountMatch != null) {
+            totalAmount = totalAmountMatch.group(1) ?? '';
+            break; // Exit loop once the total amount is found
+          }
+        }
+        else if (lineText?.toLowerCase().contains('amount') == true) {
+          int totalIndex = lineText!.toLowerCase().indexOf('amount');
+          // Look for numbers after "Total" even if ':' or '$' is present
+          String lineAfterTotal = lineText.substring(
+              totalIndex + 'amount'.length);
+
+          RegExp totalAmountPattern = RegExp(
+              r'[:$₹\s]*?([\d,.]+)', caseSensitive: false);
+          Match? totalAmountMatch = totalAmountPattern.firstMatch(
+              lineAfterTotal);
+
+          if (totalAmountMatch != null) {
+            totalAmount = totalAmountMatch.group(1) ?? '';
+            break; // Exit loop once the total amount is found
+          }
+        }
+      }
+    }
+
+    // Use a regular expression to find a date in the format dd/mm/yyyy or dd-mm-yyyy
+    RegExp datePattern = RegExp(r'(\d{2}[/-]\d{2}[/-]\d{4})', caseSensitive: false);
+    Match? dateMatch = datePattern.firstMatch(visionText.text ?? ''); // Provide a default empty string if visionText.text is null
+
+    date = dateMatch != null ? dateMatch.group(1) ?? '' : 'Date not found';
+
+    setState(() {
+      amountController.text = totalAmount;
+      dateController.text = date;
+    });
+
+    textRecognizer.close();
+  }
+  Future<void> _handleSubmit() async {
+    final date = dateController.text;
+    final amount = amountController.text;
+    final category = selectedCategory;
+
+    if (date.isEmpty || amount.isEmpty || category == null) {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text('Validation Error'),
+            content: Text('Please fill in all required fields.'),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser; // Get the current authenticated user
+
+    if (user != null) {
+      final userUid = user.uid;
+
+
+      final DatabaseReference databaseReference = FirebaseDatabase.instance.reference();
+      final newExpenseRef = databaseReference.child('expenses').child(userUid).push();
+
+      final expenseData = {
+        'date': date,
+        'amount': amount,
+        'category': category,
+      };
+
+      await newExpenseRef.set(expenseData);
+
+      // Clear the form fields after submitting
+      dateController.clear();
+      amountController.clear();
       setState(() {
-        scannedData =
-        "Scanned Amount: 100.00\nScanned Date: 2023-08-29\nScanned Category: Category 1";
-        _photoUploaded = true;
+        selectedCategory = null;
       });
+    } else {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text('Please Sign In'),
+            content: Text('You need to sign in or create an account to add cash expenses.'),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  // Navigate to the sign-in or registration screen.
+                },
+                child: Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+      return;
     }
   }
 
@@ -562,6 +754,7 @@ class _CashTransactionFormState extends State<CashTransactionForm> {
                   contentPadding: EdgeInsets.all(16.0),
                 ),
                 keyboardType: TextInputType.number,
+                controller: amountController,
                 initialValue: scannedData != null &&
                     scannedData!.contains("Scanned Amount:")
                     ? scannedData?.split("Scanned Amount:")[1].split("\n")[0]
@@ -579,9 +772,16 @@ class _CashTransactionFormState extends State<CashTransactionForm> {
               ),
               child: InkWell(
                 onTap: () {
+
                   _selectDate(context);
+                  setState(() {
+                    dateController.text = _selectedDate != null
+                        ? "${_selectedDate!.toLocal()}".split(' ')[0]
+                        : 'Select Date';
+                  });
                 },
                 child: InputDecorator(
+
                   decoration: InputDecoration(
                     labelText: 'Date',
                     prefixIcon: Icon(Icons.calendar_today, color: Color(0xff3AA6B9)),
@@ -593,14 +793,15 @@ class _CashTransactionFormState extends State<CashTransactionForm> {
                     contentPadding: EdgeInsets.all(16.0),
                   ),
                   child: Text(
-                    _selectedDate != null
-                        ? "${_selectedDate!.toLocal()}".split(' ')[0]
-                        : 'Select Date',
+
+                    dateController.text,
                     style: TextStyle(
                       color: Color(0xff3AA6B9),
                       fontFamily: 'Poppins',
                     ),
+
                   ),
+
                 ),
               ),
             ),
@@ -699,9 +900,7 @@ class _CashTransactionFormState extends State<CashTransactionForm> {
             SizedBox(height: 30),
             // Submit Button
             ElevatedButton(
-              onPressed: () {
-                // Handle form submission here
-              },
+              onPressed: _handleSubmit,
               style: ButtonStyle(
                 shape: MaterialStateProperty.all<RoundedRectangleBorder>(
                   RoundedRectangleBorder(
