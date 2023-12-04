@@ -1,6 +1,6 @@
-import 'package:expense_tracker/settings_page.dart';
-import 'package:expense_tracker/signup_page.dart';
-import 'package:expense_tracker/summary_page.dart';
+import 'package:SmartSaver/settings_page.dart';
+import 'package:SmartSaver/signup_page.dart';
+import 'package:SmartSaver/summary_page.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Authentication
 

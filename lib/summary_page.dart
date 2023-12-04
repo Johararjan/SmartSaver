@@ -1,9 +1,11 @@
-import 'package:expense_tracker/savings_page.dart';
-import 'package:expense_tracker/settings_page.dart';
+import 'package:SmartSaver/savings_page.dart';
+import 'package:SmartSaver/settings_page.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:pie_chart/pie_chart.dart';
+
 
 import 'expense_income.dart';
 FirebaseAuth auth = FirebaseAuth.instance;
@@ -13,20 +15,227 @@ final firebase_auth.User? user = FirebaseAuth.instance.currentUser;
 class SummaryPage extends StatefulWidget {
   @override
   _SummaryPageState createState() => _SummaryPageState();
-}
 
+}
+class TransactionModel {
+  final String date;
+  final String category;
+  final double amount;
+
+  TransactionModel(this.date, this.category, this.amount);
+}
 class _SummaryPageState extends State<SummaryPage> {
+
+
+
   DateTime startDate = DateTime.now();
   DateTime endDate = DateTime.now();
   int _bottomNavigationBarIndex = 0; // Index for the selected tab
   int _pageViewIndex = 0;
-
+  bool isLoading = false;
+  late PageController _pageController;
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _pageViewIndex);
+    // Fetch the default one-month transactions when the page is opened
+    final lastMonth = DateTime.now().subtract(Duration(days: 30));
+    startDate = lastMonth;
+    fetchDataFromFirebase(startDate, endDate);
+  }
 
   void _onSliderIndexChanged(int index) {
     setState(() {
       _pageViewIndex = index;
     });
   }
+  Future<void> fetchDataFromFirebase(DateTime startDate, DateTime endDate) async {
+    setState(() {
+      isLoading = true; // Show the circular progress indicator
+    });
+    final User? user = FirebaseAuth.instance.currentUser;
+    final DatabaseReference databaseReference = FirebaseDatabase.instance.reference();
+    final DatabaseReference expensesRef = databaseReference.child('expenses');
+    final DatabaseReference incomeRef = databaseReference.child('income').child(user!.uid);
+
+    // Fetch all cash expenses
+    final DatabaseEvent cashEvent = await expensesRef.child('cash').child(user.uid).once();
+    final DataSnapshot cashData = cashEvent.snapshot;
+    final List<TransactionModel> cashTransactions = [];
+
+    if (cashData.value is Map) {
+      print("if");
+      final Map<dynamic, dynamic> cashExpensesData = cashData.value as Map<dynamic, dynamic>;
+
+          cashExpensesData.forEach((expenseId, expenseData) {
+            if (expenseData is Map) {
+              final String? date = expenseData['date']?.toString();
+              final double amount = double.tryParse(
+                  expenseData['amount']?.toString() ?? '0.0') ?? 0.0;
+
+              if (date != null) {
+                // Check if the date falls within the specified range
+                final DateTime? expenseDate = DateTime.tryParse(date);
+                if (expenseDate != null && expenseDate.isAfter(startDate) &&
+                    expenseDate.isBefore(endDate)) {
+                  final String category = expenseData['category']?.toString() ?? '';
+                  cashTransactions.add(
+                      TransactionModel(date, category, amount));
+                }
+              }
+            }
+          });
+
+      setState(() {
+        isLoading = false; // Hide the circular progress indicator
+      });
+    }
+
+// Fetch online expenses
+    final DatabaseEvent onlineEvent = await expensesRef.child('online').child(user.uid).once();
+    final DataSnapshot onlineData = onlineEvent.snapshot;
+    final List<TransactionModel> onlineTransactions = [];
+
+    if (onlineData.value is Map) {
+      final Map<dynamic, dynamic> onlineExpensesData = onlineData.value as Map<dynamic, dynamic>;
+
+          onlineExpensesData.forEach((expenseId, expenseData) {
+            if (expenseData is Map) {
+              final String? date = expenseData['date']?.toString();
+              final double amount = double.tryParse(
+                  expenseData['amount']?.toString() ?? '0.0') ?? 0.0;
+
+
+              if (date != null) {
+                // Check if the date falls within the specified range
+                final DateTime? expenseDate = DateTime.tryParse(date);
+                if (expenseDate != null && expenseDate.isAfter(startDate) &&
+                    expenseDate.isBefore(endDate)) {
+                  final String category = expenseData['category']?.toString() ?? '';
+                  onlineTransactions.add(
+                      TransactionModel(date, category, amount));
+                }
+              }
+            }
+          });
+
+    }
+
+// Fetch income data
+    final DatabaseEvent incomeEvent = await incomeRef.once();
+    final DataSnapshot incomeData = incomeEvent.snapshot;
+    final List<TransactionModel> incomeTransactions = [];
+
+    if (incomeData.value is Map) {
+      final Map<dynamic, dynamic> incomeDataMap = incomeData.value as Map<dynamic, dynamic>;
+          incomeDataMap.forEach((incomeId, incomeData) {
+            if (incomeData is Map) {
+              final String? date = incomeData['date']?.toString();
+              final double amount = double.tryParse(
+                  incomeData['amount']?.toString() ?? '0.0') ?? 0.0;
+
+              if (date != null) {
+                // Check if the date falls within the specified range
+                final DateTime? incomeDate = DateTime.tryParse(date);
+                if (incomeDate != null && incomeDate.isAfter(startDate) &&
+                    incomeDate.isBefore(endDate)) {
+                  final String category = incomeData['category']?.toString() ?? '';
+                  incomeTransactions.add(
+                      TransactionModel(date, category, amount));
+                }
+              }
+            }
+          });
+
+    }
+
+
+
+    // Combine all transactions
+    final List<TransactionModel> expensesTransactions = [...cashTransactions, ...onlineTransactions];
+
+
+    // Update the pie chart and transactions list
+    updateCategoryData(expensesTransactions);
+    updateIncomeExpenseData(expensesTransactions,incomeTransactions);
+    setState(() {
+      transactions = expensesTransactions.map((transaction) {
+        return '${transaction.date}|${transaction.category}|${transaction.amount.toString()}';
+      }).toList();
+      transactions.sort((a, b) {
+        final dateA = DateTime.tryParse(a.split('|')[0]);
+        final dateB = DateTime.tryParse(b.split('|')[0]);
+        if (dateA == null || dateB == null) {
+          return 0; // Handle parsing errors
+        }
+        return dateB.compareTo(dateA); // Sort in descending order (latest to oldest)
+      });
+    });
+
+  }
+
+  // Function to update category data
+  void updateCategoryData(List<TransactionModel> transactions) {
+    final Map<String, double> updatedCategoryData = {};
+
+    // Loop through transactions and update the category data
+    for (final transaction in transactions) {
+      final String category = transaction.category;
+      final double amount = transaction.amount;
+
+      // If the category already exists in the map, add the amount to it
+      if (updatedCategoryData.containsKey(category)) {
+        updatedCategoryData[category] = (updatedCategoryData[category]!+ amount);
+      } else {
+        // If the category doesn't exist, initialize it with the amount
+        updatedCategoryData[category] = amount;
+      }
+    }
+
+    final Map<String, double> categoryData = {};
+    updatedCategoryData.forEach((category, totalExpense) {
+      categoryData['$category \₹ ${totalExpense.toStringAsFixed(0)}'] = totalExpense;
+    });
+    // Update the categoryData map with the updated data
+    setState(() {
+      this.categoryData = categoryData;
+      });
+  }
+  double totalIncome=0;
+// Function to update income and expense data
+  void updateIncomeExpenseData(List<TransactionModel> expenses, List<TransactionModel> income) {
+    double totalExpenses = 0;
+    double totalSavings = 0;
+
+    // Calculate total expenses
+    for (final expense in expenses) {
+      totalExpenses += expense.amount;
+    }
+
+    // Calculate total income
+    totalIncome = 0;
+    for (final transaction in income) {
+      totalIncome += transaction.amount;
+    }
+
+    // Calculate savings (Income - Expenses)
+    totalSavings = totalIncome - totalExpenses;
+
+    // Round the values to the nearest integer
+    totalExpenses = totalExpenses.roundToDouble();
+    totalSavings = totalSavings.roundToDouble();
+
+    // Update the incomeExpenseSavingsData map
+    setState(() {
+      incomeExpenseSavingsData = {
+        'Expenses \₹ $totalExpenses': totalExpenses,
+        'Savings \₹ $totalSavings': totalSavings,
+      };
+    });
+  }
+
+
+
+
 
   void _onBottomNavBarIndexChanged(int index) {
     setState(() {
@@ -185,7 +394,7 @@ class _SummaryPageState extends State<SummaryPage> {
                           showChartValuesOutside: false,
                           decimalPlaces: 0,
                         ),
-                        totalValue: 1000,
+                        totalValue: totalIncome,
                       ),
                     ),
                   ],
@@ -234,6 +443,10 @@ class _SummaryPageState extends State<SummaryPage> {
                     fontFamily: 'Poppins',
                   ),
                 ),
+                if (isLoading)
+                  Center(
+                    child: CircularProgressIndicator(),
+                  ),
                 SizedBox(height: 30.0),
                 Container(
                   padding: EdgeInsets.all(16.0),
@@ -310,8 +523,8 @@ class _SummaryPageState extends State<SummaryPage> {
                         alignment: Alignment.center,
                         child: ElevatedButton(
                           onPressed: () {
-                            // Implement action when the submit button is pressed
-                            // You can use the selected startDate and endDate
+                            fetchDataFromFirebase(startDate, endDate);
+
                           },
                           style: ButtonStyle(
                             shape: MaterialStateProperty.all<RoundedRectangleBorder>(
@@ -348,9 +561,9 @@ class _SummaryPageState extends State<SummaryPage> {
               children: [
                 GestureDetector(
                   onTap: () {
-                    // Navigate to Pie Charts
-                    _onSliderIndexChanged(0);
+                    _pageController.animateToPage(0, duration: Duration(milliseconds: 300), curve: Curves.ease);
                   },
+
                   child: Text(
                     'Pie Charts',
                     style: TextStyle(
@@ -362,8 +575,7 @@ class _SummaryPageState extends State<SummaryPage> {
                 ),
                 GestureDetector(
                   onTap: () {
-                    // Navigate to Transactions
-                    _onSliderIndexChanged(1);
+                    _pageController.animateToPage(1, duration: Duration(milliseconds: 300), curve: Curves.ease);
                   },
                   child: Text(
                     'Transactions View',
@@ -380,7 +592,7 @@ class _SummaryPageState extends State<SummaryPage> {
           // Add PageView for sliding between Pie Charts and Transactions
           Expanded(
             child: PageView(
-              controller: PageController(initialPage: _pageViewIndex),
+              controller: _pageController,
               onPageChanged: _onSliderIndexChanged,
               children: pages,
             ),
@@ -477,7 +689,7 @@ class TransactionWidget extends StatelessWidget {
 }
 
 // Define your transaction data
-final List<String> transactions = [
+ List<String> transactions = [
   '2023-09-01|Housing|800.0',
   '2023-09-02|Transportation|50.0',
   '2023-09-03|Food and Dining|100.0',

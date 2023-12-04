@@ -1,5 +1,5 @@
-import 'package:expense_tracker/savings_page.dart';
-import 'package:expense_tracker/summary_page.dart';
+import 'package:SmartSaver/savings_page.dart';
+import 'package:SmartSaver/summary_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
